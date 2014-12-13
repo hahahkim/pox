@@ -24,7 +24,7 @@ from pox.lib.addresses import EthAddr, IPAddr # Address types
 import pox.lib.util as poxutil                # Various util functions
 import pox.lib.revent as revent               # Event library
 import pox.lib.recoco as recoco               # Multitasking library
-
+from pox.lib.revent import EventRemove
 from pox.lib.util import dpid_to_str
 from pox.lib.util import str_to_bool
 import time
