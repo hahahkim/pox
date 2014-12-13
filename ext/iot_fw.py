@@ -36,6 +36,41 @@ log = core.getLogger()
 
 _flood_delay = 0
 
+class UpnpDevice (object):
+  def __init__ (self, ip, port, path):
+    self.ip = ip
+    self.port = port
+    self.allow_list = {} #key is service name, value is allowed ip list
+  
+  def add_service(self, service):
+    if self.allow_list.has_key(service):
+      self.allow_list[service] = []
+
+  def add_allow(self, service, ip):
+    if self.allow_list.has_key(service):
+      if ip not in self.allow_list[service]:
+        self.allow_list[service] += [ip]
+  
+  def is_allowed(self, service, ip):
+    if self.allow_list.has_key(service):
+      if ip in self.allow_list[service]:
+        return True
+    return False
+
+class UpnpDevices (object):
+  def __init__(self):
+    self.devices = []
+
+  def add(self,ip, port):
+    if not find(ip,port):
+      self.devices += [UpnpDevice(ip,port)]
+
+  def find(self,ip,port):
+    for device in self.devices:
+      if device.ip == ip and device.port == port
+        return device
+    return None
+
 class LearningSwitch (object):
   def __init__ (self, connection, transparent):
     # Switch we'll be adding L2 learning switch capabilities to
@@ -44,7 +79,7 @@ class LearningSwitch (object):
 
     # Our table
     self.macToPort = {}
-    self.upnp_info = {}
+    self.devices = UpnpDevices()
     # We want to hear PacketIn messages, so we listen
     # to the connection
     connection.addListeners(self)
@@ -73,7 +108,7 @@ class LearningSwitch (object):
       if not udp_p:
         return
       data = udp_p.payload
-      log.debug("SSDP : \n"+data)
+      #log.debug("SSDP : \n"+data)
       port = 0
       path = ""
       for line in data.split("\r\n"):
@@ -87,7 +122,7 @@ class LearningSwitch (object):
             path = m.group(3)
       if port > 0: #valid ssdp found
         log.info("upnp device found:%s"%(m.group(0)))
-        self.upnp_info[dev_ip] = (port,path)
+        self.devices.add(dev_ip, port)
 
     def flood (message = None):
       """ Floods the packet """
@@ -145,6 +180,7 @@ class LearningSwitch (object):
       ssdp(event)
       flood() # 3a
     else:
+      ### l2 learning switch ###
       if packet.dst not in self.macToPort: # 4
         flood("Port for %s unknown -- flooding" % (packet.dst,)) # 4a
       else:
@@ -156,7 +192,7 @@ class LearningSwitch (object):
           drop(10)
           return
         # 6
-        log.debug("installing flow for %s.%i -> %s.%i" %
+        #log.debug("installing flow for %s.%i -> %s.%i" %
                   (packet.src, event.port, packet.dst, port))
         msg = of.ofp_flow_mod()
         msg.match = of.ofp_match.from_packet(packet, event.port)
