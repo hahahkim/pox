@@ -197,12 +197,12 @@ class LearningSwitch (object):
       ssdp(event)
       flood() # 3a
     else:
+      no_flow = False
       ip_p = packet.find("ipv4")
       tcp_p = packet.find("tcp")
       ### find service list from description
       if ip_p and tcp_p:
         dev = self.devices.find(ip_p.srcip, tcp_p.srcport) #from device
-        log.debug("from device")
         if dev:
           data = tcp_p.payload
           if data and "serviceList" in data: #if description packet
@@ -216,9 +216,10 @@ class LearningSwitch (object):
                 #spath = find_xmlall(service,"controlURL")[0]
                 dev.add_service(sid,"") #save service list
                 log.debug("[%s] %s added"%(dev.name,sid))
+          else:
+            no_flow=True
 
       ### check allow list
-      no_flow = False
       if ip_p and tcp_p:
         dev = self.devices.find(ip_p.dstip, tcp_p.dstport) #from device 
         if dev:
@@ -258,7 +259,7 @@ class LearningSwitch (object):
         # 6
         #log.debug("installing flow for %s.%i -> %s.%i" %
         #          (packet.src, event.port, packet.dst, port))
-        if False: 
+        if not no_flow: 
           msg = of.ofp_flow_mod()
           msg.match = of.ofp_match.from_packet(packet, event.port)
           msg.idle_timeout = 10
