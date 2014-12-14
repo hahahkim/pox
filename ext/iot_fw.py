@@ -284,14 +284,16 @@ class LearningSwitch (object):
                     log.debug("=> access dropped")
                     #denied
                     drop(10)
+                    return
             else: # not HTTP, maybe handshaking or else
               no_flow = True
               #forward but do not setup policy
           else:
             dev = self.devices.find(ip_p.srcip, tcp_p.srcport) #from device 
             if not dev:
-              log.debug("%s to %s %d access dropped"%(ip_p.srcip,ip_p.dstip,tcp_p.dstport))
+              log.debug("%s %d to %s %d access dropped"%(ip_p.srcip,tcp_p.srcport,ip_p.dstip,tcp_p.dstport))
               drop(10)
+              return
       
       ### l2 learning switch ###
       if packet.dst not in self.macToPort: # 4
