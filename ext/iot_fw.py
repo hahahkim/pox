@@ -83,7 +83,7 @@ class UpnpDevices (object):
 
   def find(self,ip,port):
     for device in self.devices:
-      if device.ip == ip and device.port == port and device.path == path:
+      if device.ip == ip and device.port == port: 
         return device
     return None
 
@@ -137,7 +137,8 @@ class LearningSwitch (object):
           if len(m.groups()) == 3:
             path = m.group(3)
       if port > 0: #valid ssdp found
-        log.info("upnp device found:%s"%(m.group(0)))
+        if not self.devices.find(dev_ip,port):
+          log.info("upnp device found:%s"%(m.group(0)))
         self.devices.add(dev_ip, port, path)
 
     def flood (message = None):
@@ -200,7 +201,8 @@ class LearningSwitch (object):
       tcp_p = packet.find("tcp")
       ### find service list from description
       if ip_p and tcp_p:
-        dev = self.devices.find(ip_p.srcip, tcp_p.srcport) #from device 
+        dev = self.devices.find(ip_p.srcip, tcp_p.srcport) #from device
+        log.debug("from device")
         if dev:
           data = tcp_p.payload
           if data and "serviceList" in data: #if description packet
@@ -256,7 +258,7 @@ class LearningSwitch (object):
         # 6
         #log.debug("installing flow for %s.%i -> %s.%i" %
         #          (packet.src, event.port, packet.dst, port))
-        if not no_flow:
+        if False: 
           msg = of.ofp_flow_mod()
           msg.match = of.ofp_match.from_packet(packet, event.port)
           msg.idle_timeout = 10
