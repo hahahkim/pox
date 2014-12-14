@@ -83,7 +83,7 @@ class UpnpDevices (object):
 
   def find(self,ip,port):
     for device in self.devices:
-      if device.ip == ip and device.port == port:
+      if device.ip == ip and device.port == port and device.path == path:
         return device
     return None
 
@@ -204,16 +204,16 @@ class LearningSwitch (object):
         if dev:
           data = tcp_p.payload
           if data and "serviceList" in data: #if description packet
-            services = find_xmlall(data,"service")
+            services = find_xmlall(data,"serviceId")
             name = find_xmlall(data,"friendlyName")
             if len(name)>0:
               dev.name = name[0]
             if len(services)>0:
               for service in services:
-                sid = find_xmlall(service,"serviceId")[0]
-                spath = find_xmlall(service,"controlURL")[0]
-                dev.add_service(sid,spath) #save service list
-                log.debug("[%s] %s (%s) added"%(dev.name,sid,spath))
+                sid = service 
+                #spath = find_xmlall(service,"controlURL")[0]
+                dev.add_service(sid,"") #save service list
+                log.debug("[%s] %s added"%(dev.name,sid))
 
       ### check allow list
       no_flow = False
