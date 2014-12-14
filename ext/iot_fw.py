@@ -239,40 +239,44 @@ class LearningSwitch (object):
                   service = m.group(1)
                   action = m.group(2)
                   log.debug(service)
-                  if action in connection_actions.keys():
-                    uri_tag = connection_actions[action]
-                    uri = find_xmlall(data,uri_tag)[0]
-                    m=re.search("https?:\/\/([A-Za-z0-9\.-]{3,}):?(\d+)?(\/?.*)",uri)
-                    ip = m.group(1)
-                    port = int(m.group(2))
-                    #add rule for connection
-                    log.debug("rule setup for %s"%(uri))
-                    msg= of.ofp_flow_mod()
-                    msg.match = of.ofp_match.from_packet(packet, event.port)
-                    msg.match.tp_src = port
-                    msg.match.tp_dst = None
-                    msg.idle_timeout = 10
-                    msg.hard_timeout = OFP_FLOW_PERMANENT #for streaming
-                    msg.actions.append(of.ofp_action_output(port = self.macToPort[packet.dst]))
-                    self.connection.send(msg)
-                    
-                    msg= of.ofp_flow_mod()
-                    msg.match.dl_src = packet.dst
-                    msg.match.dl_dst = packet.src
-                    msg.match.nw_proto = 6
-                    msg.match.nw_src = ip_p.dstip
-                    msg.match.nw_dst = ip_p.srcip
-                    msg.match.tp_src = None
-                    msg.match.tp_dst = port
-                    msg.idle_timeout = 10
-                    msg.hard_timeout = OFP_FLOW_PERMANENT #for streaming
-                    msg.actions.append(of.ofp_action_output(port = self.macToPort[packet.src]))
-                    self.connection.send(msg)
 
                   if dev.is_allowed(service,ip_p.srcip):
-                    log.debug("=> access allowed")
                     #allowed
                     #forward and setup policy
+                    log.debug("=> access allowed")
+                    if action in connection_actions.keys():
+                      uri_tag = connection_actions[action]
+                      uri = find_xmlall(data,uri_tag)[0]
+                      m=re.search("https?:\/\/([A-Za-z0-9\.-]{3,}):?(\d+)?(\/?.*)",uri)
+                      ip = m.group(1)
+                      port = int(m.group(2))
+                      #add rule for connection
+                      log.debug("rule setup for %s"%(uri))
+                      msg= of.ofp_flow_mod()
+                      msg.match.dl_src = packet.src
+                      msg.match.dl_dst = packet.dst
+                      msg.match.nw_proto = 6
+                      msg.match.nw_src = ip_p.srcip
+                      msg.match.nw_dst = ip_p.dstip
+                      msg.match.tp_src = port
+                      msg.match.tp_dst = None
+                      msg.idle_timeout = 10
+                      msg.hard_timeout = OFP_FLOW_PERMANENT #for streaming
+                      msg.actions.append(of.ofp_action_output(port = self.macToPort[packet.dst]))
+                      self.connection.send(msg)
+                      
+                      msg= of.ofp_flow_mod()
+                      msg.match.dl_src = packet.dst
+                      msg.match.dl_dst = packet.src
+                      msg.match.nw_proto = 6
+                      msg.match.nw_src = ip_p.dstip
+                      msg.match.nw_dst = ip_p.srcip
+                      msg.match.tp_src = None
+                      msg.match.tp_dst = port
+                      msg.idle_timeout = 10
+                      msg.hard_timeout = OFP_FLOW_PERMANENT #for streaming
+                      msg.actions.append(of.ofp_action_output(port = self.macToPort[packet.src]))
+                      self.connection.send(msg)
                   else:
                     log.debug("=> access dropped")
                     #denied
