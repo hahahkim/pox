@@ -36,15 +36,31 @@ log = core.getLogger()
 
 _flood_delay = 0
 
+def find_xmlall(xml,tag):
+  ret = []
+  while True:
+    i = xml.find("<"+tag+">")
+    if i == -1:
+      return ret
+    i += len(tag)+2
+    xml = xml[i:]
+    i = xml.find("</"+tag+">")
+    ret += [xml[:i]]
+    xml = xml[i:]
+
 class UpnpDevice (object):
   def __init__ (self, ip, port, path):
     self.ip = ip
     self.port = port
+    self.path = path
+    self.name = ""
+    self.service_path = {} #key is service name, value is service URL
     self.allow_list = {} #key is service name, value is allowed ip list
   
-  def add_service(self, service):
+  def add_service(self, service, path):
     if self.allow_list.has_key(service):
       self.allow_list[service] = []
+      self.service_path[service] = path
 
   def add_allow(self, service, ip):
     if self.allow_list.has_key(service):
@@ -61,9 +77,9 @@ class UpnpDevices (object):
   def __init__(self):
     self.devices = []
 
-  def add(self,ip, port):
+  def add(self,ip, port,path):
     if not find(ip,port):
-      self.devices += [UpnpDevice(ip,port)]
+      self.devices += [UpnpDevice(ip,port,path)]
 
   def find(self,ip,port):
     for device in self.devices:
@@ -122,7 +138,7 @@ class LearningSwitch (object):
             path = m.group(3)
       if port > 0: #valid ssdp found
         log.info("upnp device found:%s"%(m.group(0)))
-        self.devices.add(dev_ip, port)
+        self.devices.add(dev_ip, port, path)
 
     def flood (message = None):
       """ Floods the packet """
@@ -180,6 +196,24 @@ class LearningSwitch (object):
       ssdp(event)
       flood() # 3a
     else:
+      ip_p = packet.find("ipv4")
+      tcp_p = packet.find("tcp")
+      ### find service list from description
+      if ip_p and tcp_p:
+        dev = self.devices.find(ip_p.srcip, tcp_p.srcport) #from device 
+        if dev:
+          data = tcp_p.payload
+          if "HTTP/1." in data and "serviceList" in data: #if description packet
+            services = find_xmlall(data,"service")
+            dev.name = find_xmlall(data,"friendlyName")
+            for service in services:
+              sid = find_xmlall(service,"serviceId")[0]
+              spath = find_xmlall(service,"controlURL")[0]
+              dev.add_service(sid,spath) #save service list
+              log.debug("[%s] %s (%s) added"%(dev.name,sid,spath))
+
+      ### check allow list
+      
       ### l2 learning switch ###
       if packet.dst not in self.macToPort: # 4
         flood("Port for %s unknown -- flooding" % (packet.dst,)) # 4a
@@ -193,7 +227,7 @@ class LearningSwitch (object):
           return
         # 6
         #log.debug("installing flow for %s.%i -> %s.%i" %
-                  (packet.src, event.port, packet.dst, port))
+        #          (packet.src, event.port, packet.dst, port))
         msg = of.ofp_flow_mod()
         msg.match = of.ofp_match.from_packet(packet, event.port)
         msg.idle_timeout = 10
