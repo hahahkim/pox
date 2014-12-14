@@ -78,7 +78,7 @@ class UpnpDevices (object):
     self.devices = []
 
   def add(self,ip, port,path):
-    if not find(ip,port):
+    if not self.find(ip,port):
       self.devices += [UpnpDevice(ip,port,path)]
 
   def find(self,ip,port):
@@ -216,6 +216,7 @@ class LearningSwitch (object):
                 log.debug("[%s] %s (%s) added"%(dev.name,sid,spath))
 
       ### check allow list
+      no_flow = False
       if ip_p and tcp_p:
         dev = self.devices.find(ip_p.dstip, tcp_p.dstport) #from device 
         if dev:
@@ -230,7 +231,7 @@ class LearningSwitch (object):
                 service = line[line.find("urn:"):line.find("#")]
                 log.debug(service)
                 if dev.is_allowed(service,ip_p.srcip):
-                  log.debug("service allowed"
+                  log.debug("service allowed")
                   #allowed
                   #forward and setup policy
                 else:
@@ -255,13 +256,20 @@ class LearningSwitch (object):
         # 6
         #log.debug("installing flow for %s.%i -> %s.%i" %
         #          (packet.src, event.port, packet.dst, port))
-        msg = of.ofp_flow_mod()
-        msg.match = of.ofp_match.from_packet(packet, event.port)
-        msg.idle_timeout = 10
-        msg.hard_timeout = 30
-        msg.actions.append(of.ofp_action_output(port = port))
-        msg.data = event.ofp # 6a
-        self.connection.send(msg)
+        if not no_flow:
+          msg = of.ofp_flow_mod()
+          msg.match = of.ofp_match.from_packet(packet, event.port)
+          msg.idle_timeout = 10
+          msg.hard_timeout = 30
+          msg.actions.append(of.ofp_action_output(port = port))
+          msg.data = event.ofp # 6a
+          self.connection.send(msg)
+        else:
+          msg = of.ofp_packet_out()
+          msg.actions.append(of.ofp_action_output(port = port))
+          msg.data = event.ofp
+          self.connection.send(msg)
+
 
 
 class l2_learning (object):
