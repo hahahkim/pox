@@ -224,9 +224,9 @@ class LearningSwitch (object):
 
       ### check allow list
       if ip_p and tcp_p:
-        if ip_p.srcip.in_network("192.168.0.0/24") and ip_p.dstip.in_network("102.168.0.0/24"):
+        if ip_p.srcip.in_network("192.168.0.0/24") and ip_p.dstip.in_network("192.168.0.0/24"):
           #local area network, only upnp
-          dev = self.devices.find(ip_p.dstip, tcp_p.dstport) #from device 
+          dev = self.devices.find(ip_p.dstip, tcp_p.dstport) #to device 
           if dev:
             data = tcp_p.payload
             if data and "HTTP/1." in data: #if HTTP request packet
@@ -240,11 +240,12 @@ class LearningSwitch (object):
                   service = m.group(1)
                   action = m.group(2)
                   log.debug(service)
-
+                  
                   if dev.is_allowed(service,ip_p.srcip):
                     #allowed
                     #forward and setup policy
                     log.debug("=> access allowed")
+                    """
                     if action in connection_actions.keys():
                       uri_tag = connection_actions[action]
                       uri = find_xmlall(data,uri_tag)[0]
@@ -278,6 +279,7 @@ class LearningSwitch (object):
                       msg.hard_timeout = OFP_FLOW_PERMANENT #for streaming
                       msg.actions.append(of.ofp_action_output(port = self.macToPort[packet.src]))
                       self.connection.send(msg)
+                    """
                   else:
                     log.debug("=> access dropped")
                     #denied
@@ -286,8 +288,10 @@ class LearningSwitch (object):
               no_flow = True
               #forward but do not setup policy
           else:
-            log.debug("%s to %s %d access dropped"%(ip_p.srcip,ip_p.dstip,tcp_p.dstport))
-            drop(10)
+            dev = self.devices.find(ip_p.srcip, tcp_p.srcport) #from device 
+            if not dev:
+              log.debug("%s to %s %d access dropped"%(ip_p.srcip,ip_p.dstip,tcp_p.dstport))
+              drop(10)
       
       ### l2 learning switch ###
       if packet.dst not in self.macToPort: # 4
