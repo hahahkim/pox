@@ -33,6 +33,8 @@ import re
 # Create a logger for this component
 log = core.getLogger()
 
+# more list required according to upnp specification
+connection_actions = {"SetAVTransportURI":"CurrentURI"}
 
 _flood_delay = 0
 
@@ -131,14 +133,14 @@ class LearningSwitch (object):
         if line.lower().find("location")>=0:
           m=re.search("https?:\/\/([A-Za-z0-9\.-]{3,}):?(\d+)?(\/?.*)",line)
           if len(m.groups()) >= 2:
-            port = m.group(2)
+            port = int(m.group(2))
           else:
             port = 80 #default
           if len(m.groups()) == 3:
             path = m.group(3)
       if port > 0: #valid ssdp found
         if not self.devices.find(dev_ip,port):
-          log.info("upnp device found:%s"%(m.group(0)))
+          log.info("upnp device found:%s:%s"%(dev_ip,port))
         self.devices.add(dev_ip, port, path)
 
     def flood (message = None):
@@ -221,29 +223,66 @@ class LearningSwitch (object):
 
       ### check allow list
       if ip_p and tcp_p:
-        dev = self.devices.find(ip_p.dstip, tcp_p.dstport) #from device 
-        if dev:
-          data = tcp_p.payload
-          if data and "HTTP/1." in data: #if HTTP request packet
-            lines = data.split("\r\n")
-            log.debug("[%s] %s request"%(dev.name, lines[0]))
-            for line in lines:
-              #SOAPACTION: "urn:schemas-upnp-org:service:AVTransport:1#SetAVTransportURI"
-              if "SOAPACTION:" in line:
-                log.debug("%s"%(line))
-                service = line[line.find("urn:"):line.find("#")]
-                log.debug(service)
-                if dev.is_allowed(service,ip_p.srcip):
-                  log.debug("service allowed")
-                  #allowed
-                  #forward and setup policy
-                else:
-                  log.debug("service denied")
-                  #denied
-                  #drop(10)
-          else: # not HTTP, maybe handshaking or else
-            no_flow = True
-            #forward but do not setup policy
+        if ip_p.srcip.in_network("192.168.0.0/24") and ip_p.dstip.in_network("102.168.0.0/24"):
+          #local area network, only upnp
+          dev = self.devices.find(ip_p.dstip, tcp_p.dstport) #from device 
+          if dev:
+            data = tcp_p.payload
+            if data and "HTTP/1." in data: #if HTTP request packet
+              lines = data.split("\r\n")
+              log.debug("[%s] %s request from %s"%(dev.name, lines[0],ip_p.srcip))
+              for line in lines:
+                #SOAPACTION: "urn:schemas-upnp-org:service:AVTransport:1#SetAVTransportURI"
+                if "SOAPACTION:" in line:
+                  log.debug("%s"%(line))
+                  m = re.search("(urn:.*#)(.*)",line)
+                  service = m.group(1)
+                  action = m.group(2)
+                  log.debug(service)
+                  if action in connection_actions.keys():
+                    uri_tag = connection_actions[action]
+                    uri = find_xmlall(data,uri_tag)[0]
+                    m=re.search("https?:\/\/([A-Za-z0-9\.-]{3,}):?(\d+)?(\/?.*)",uri)
+                    ip = m.group(1)
+                    port = int(m.group(2))
+                    #add rule for connection
+                    log.debug("rule setup for %s"%(uri))
+                    msg= of.ofp_flow_mod()
+                    msg.match = of.ofp_match.from_packet(packet, event.port)
+                    msg.match.tp_src = port
+                    msg.match.tp_dst = None
+                    msg.idle_timeout = 10
+                    msg.hard_timeout = OFP_FLOW_PERMANENT #for streaming
+                    msg.actions.append(of.ofp_action_output(port = self.macToPort[packet.dst]))
+                    self.connection.send(msg)
+                    
+                    msg= of.ofp_flow_mod()
+                    msg.match.dl_src = packet.dst
+                    msg.match.dl_dst = packet.src
+                    msg.match.nw_proto = 6
+                    msg.match.nw_src = ip_p.dstip
+                    msg.match.nw_dst = ip_p.srcip
+                    msg.match.tp_src = None
+                    msg.match.tp_dst = port
+                    msg.idle_timeout = 10
+                    msg.hard_timeout = OFP_FLOW_PERMANENT #for streaming
+                    msg.actions.append(of.ofp_action_output(port = self.macToPort[packet.src]))
+                    self.connection.send(msg)
+
+                  if dev.is_allowed(service,ip_p.srcip):
+                    log.debug("=> access allowed")
+                    #allowed
+                    #forward and setup policy
+                  else:
+                    log.debug("=> access dropped")
+                    #denied
+                    drop(10)
+            else: # not HTTP, maybe handshaking or else
+              no_flow = True
+              #forward but do not setup policy
+          else:
+            log.debug("%s to %s %d access dropped"%(ip_p.srcip,ip_p.dstip,tcp_p.dstport))
+            drop(10)
       
       ### l2 learning switch ###
       if packet.dst not in self.macToPort: # 4
