@@ -230,9 +230,11 @@ class LearningSwitch (object):
                 service = line[line.find("urn:"):line.find("#")]
                 log.debug(service)
                 if dev.is_allowed(service,ip_p.srcip):
+                  log.debug("service allowed"
                   #allowed
                   #forward and setup policy
                 else:
+                  log.debug("service denied")
                   #denied
                   #drop(10)
           else: # not HTTP, maybe handshaking or else
