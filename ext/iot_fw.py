@@ -203,16 +203,41 @@ class LearningSwitch (object):
         dev = self.devices.find(ip_p.srcip, tcp_p.srcport) #from device 
         if dev:
           data = tcp_p.payload
-          if "HTTP/1." in data and "serviceList" in data: #if description packet
+          if data and "serviceList" in data: #if description packet
             services = find_xmlall(data,"service")
-            dev.name = find_xmlall(data,"friendlyName")
-            for service in services:
-              sid = find_xmlall(service,"serviceId")[0]
-              spath = find_xmlall(service,"controlURL")[0]
-              dev.add_service(sid,spath) #save service list
-              log.debug("[%s] %s (%s) added"%(dev.name,sid,spath))
+            name = find_xmlall(data,"friendlyName")
+            if len(name)>0:
+              dev.name = name[0]
+            if len(services)>0:
+              for service in services:
+                sid = find_xmlall(service,"serviceId")[0]
+                spath = find_xmlall(service,"controlURL")[0]
+                dev.add_service(sid,spath) #save service list
+                log.debug("[%s] %s (%s) added"%(dev.name,sid,spath))
 
       ### check allow list
+      if ip_p and tcp_p:
+        dev = self.devices.find(ip_p.dstip, tcp_p.dstport) #from device 
+        if dev:
+          data = tcp_p.payload
+          if data and "HTTP/1." in data: #if HTTP request packet
+            lines = data.split("\r\n")
+            log.debug("[%s] %s request"%(dev.name, lines[0]))
+            for line in lines:
+              #SOAPACTION: "urn:schemas-upnp-org:service:AVTransport:1#SetAVTransportURI"
+              if "SOAPACTION:" in line:
+                log.debug("%s"%(line))
+                service = line[line.find("urn:"):line.find("#")]
+                log.debug(service)
+                if dev.is_allowed(service,ip_p.srcip):
+                  #allowed
+                  #forward and setup policy
+                else:
+                  #denied
+                  #drop(10)
+          else: # not HTTP, maybe handshaking or else
+            no_flow = True
+            #forward but do not setup policy
       
       ### l2 learning switch ###
       if packet.dst not in self.macToPort: # 4
