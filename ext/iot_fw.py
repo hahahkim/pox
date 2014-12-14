@@ -83,7 +83,7 @@ class UpnpDevices (object):
 
   def find(self,ip,port):
     for device in self.devices:
-      if device.ip == ip and device.port == port
+      if device.ip == ip and device.port == port:
         return device
     return None
 
