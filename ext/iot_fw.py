@@ -60,7 +60,8 @@ class UpnpDevice (object):
     self.allow_list = {} #key is service name, value is allowed ip list
   
   def add_service(self, service, path):
-    if self.allow_list.has_key(service):
+    if not self.allow_list.has_key(service):
+      log.debug("[%s] service %s added"%(self.name,service))
       self.allow_list[service] = []
       self.service_path[service] = path
 
@@ -207,17 +208,17 @@ class LearningSwitch (object):
         dev = self.devices.find(ip_p.srcip, tcp_p.srcport) #from device
         if dev:
           data = tcp_p.payload
-          if data and "serviceList" in data: #if description packet
-            services = find_xmlall(data,"serviceId")
+          if data:
             name = find_xmlall(data,"friendlyName")
             if len(name)>0:
               dev.name = name[0]
+          if data and "serviceList" in data: #if description packet
+            services = find_xmlall(data,"serviceId")
             if len(services)>0:
               for service in services:
                 sid = service 
                 #spath = find_xmlall(service,"controlURL")[0]
                 dev.add_service(sid,"") #save service list
-                log.debug("[%s] %s added"%(dev.name,sid))
           else:
             no_flow=True
 
