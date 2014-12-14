@@ -82,7 +82,9 @@ class UpnpDevices (object):
 
   def add(self,ip, port,path):
     if not self.find(ip,port):
-      self.devices += [UpnpDevice(ip,port,path)]
+      new_dev = UpnpDevice(ip,port,path)
+      self.devices += [new_dev]
+      return new_dev
 
   def find(self,ip,port):
     for device in self.devices:
@@ -108,6 +110,12 @@ class LearningSwitch (object):
 
     #log.debug("Initializing LearningSwitch, transparent=%s",
     #          str(self.transparent))
+    
+
+    #some initialized rules
+    tv = self.devices.add(IPAddr("192.168.0.88"),7676)
+    tv.add_service("urn:schemas-upnp-org:service:AVTransport:1","")
+    tv.add_allow("urn:schemas-upnp-org:service:AVTransport:1",IPAddr("192.168.0.12"))
 
   
   def _handle_PacketIn (self, event):
@@ -236,7 +244,7 @@ class LearningSwitch (object):
                 #SOAPACTION: "urn:schemas-upnp-org:service:AVTransport:1#SetAVTransportURI"
                 if "SOAPACTION:" in line:
                   log.debug("%s"%(line))
-                  m = re.search("(urn:.*#)(.*)",line)
+                  m = re.search("(urn:.*)#(.*)",line)
                   service = m.group(1)
                   action = m.group(2)
                   log.debug(service)
